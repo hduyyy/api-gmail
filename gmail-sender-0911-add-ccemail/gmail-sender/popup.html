@@ -1,0 +1,556 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <title>GITS Mailer</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body { 
+      font-family: "Meiryo", "Hiragino Kaku Gothic ProN", "Yu Gothic", "MS PGothic", sans-serif;
+      width: 800px; 
+      padding: 0;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: #333;
+      line-height: 1.5;
+    }
+
+    .container {
+      background: white;
+      width: 800px; 
+      margin: 0;
+      padding: 20px;
+      border-radius: 0;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    }
+
+    h1 { 
+      font-size: 24px; 
+      margin: 0 0 20px; 
+      color: #2c3e50;
+      text-align: center;
+      font-weight: 700;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    fieldset { 
+      border: 2px solid #e8ecf4; 
+      border-radius: 12px; 
+      padding: 20px; 
+      margin-bottom: 20px;
+      background: #fafbfc;
+      transition: all 0.3s ease;
+    }
+
+    fieldset:hover {
+      border-color: #667eea;
+      box-shadow: 0 2px 10px rgba(102, 126, 234, 0.1);
+    }
+
+    legend { 
+      padding: 0 12px; 
+      font-weight: 600;
+      color: #2c3e50;
+      font-size: 14px;
+      background: white;
+      border-radius: 20px;
+      border: 2px solid #e8ecf4;
+    }
+
+    label { 
+      display: block; 
+      margin: 12px 0 6px; 
+      font-weight: 600;
+      color: #34495e;
+      font-size: 13px;
+    }
+
+    input[type="text"], textarea { 
+      width: 100%; 
+      padding: 12px 16px;
+      border: 2px solid #e8ecf4;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: all 0.3s ease;
+      background: white;
+    }
+
+    input[type="text"]:focus, textarea:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    textarea { 
+      min-height: 180px; 
+      resize: vertical;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    /* Custom File Input Styling */
+    .file-input-wrapper {
+      position: relative;
+      display: inline-block;
+      width: 100%;
+      margin: 8px 0;
+    }
+
+    .file-input-wrapper input[type="file"] {
+      position: absolute;
+      opacity: 0;
+      width: 100%;
+      height: 100%;
+      cursor: pointer;
+    }
+
+    .file-input-label {
+      display: block;
+      padding: 12px 20px;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: white;
+      border-radius: 8px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-weight: 500;
+      border: none;
+    }
+
+    .file-input-label:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+    }
+
+    .file-input-label:active {
+      transform: translateY(0);
+    }
+
+    .file-input-label.multiple {
+      background: linear-gradient(135deg, #f093fb, #f5576c);
+    }
+
+    .file-input-label.multiple:hover {
+      box-shadow: 0 4px 15px rgba(245, 87, 108, 0.3);
+    }
+
+    .row { 
+      display: flex; 
+      gap: 12px; 
+      align-items: center; 
+      margin: 12px 0;
+    }
+
+    .row > * { 
+      flex: 1; 
+    }
+
+    .divider {
+      display: flex;
+      align-items: center;
+      margin: 16px 0;
+      color: #7f8c8d;
+      font-size: 12px;
+    }
+
+    .divider::before,
+    .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: #e8ecf4;
+    }
+
+    .divider span {
+      padding: 0 12px;
+      background: #fafbfc;
+    }
+
+    button { 
+      padding: 12px 20px;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-size: 14px;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    #btnAuth {
+      background: linear-gradient(135deg, #4facfe, #00f2fe);
+      color: white;
+      width: 100%;
+      margin-bottom: 12px;
+    }
+
+    #btnFetchUrl {
+      background: linear-gradient(135deg, #43e97b, #38f9d7);
+      color: white;
+      width: 100%;
+    }
+
+    #btnSend {
+      background: linear-gradient(135deg, #fa709a, #fee140);
+      color: white;
+      float: right;
+      min-width: 140px;
+    }
+
+    .small { 
+      font-size: 12px; 
+      color: #7f8c8d; 
+      line-height: 1.4;
+    }
+
+    .mono { 
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace; 
+    }
+
+    .list { 
+      max-height: 140px; 
+      overflow: auto; 
+      border: 2px dashed #e8ecf4; 
+      padding: 12px; 
+      border-radius: 8px;
+      background: white;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .list::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .list::-webkit-scrollbar-track {
+      background: #f1f1f1;
+      border-radius: 3px;
+    }
+
+    .list::-webkit-scrollbar-thumb {
+      background: #c1c1c1;
+      border-radius: 3px;
+    }
+
+    .list::-webkit-scrollbar-thumb:hover {
+      background: #a8a8a8;
+    }
+
+    .muted { 
+      color: #95a5a6; 
+      font-style: italic;
+    }
+
+    .err { 
+      color: #e74c3c; 
+      white-space: pre-wrap;
+      background: #fdf2f2;
+      padding: 8px 12px;
+      border-radius: 6px;
+      border-left: 4px solid #e74c3c;
+      margin: 8px 0;
+    }
+
+    .ok { 
+      color: #27ae60;
+      background: #f0f9f4;
+      padding: 8px 12px;
+      border-radius: 6px;
+      border-left: 4px solid #27ae60;
+      margin: 8px 0;
+    }
+
+    .pill { 
+      background: linear-gradient(135deg, #667eea, #764ba2); 
+      color: white; 
+      padding: 4px 10px; 
+      border-radius: 15px; 
+      font-size: 11px; 
+      margin: 0 3px;
+      font-weight: 500;
+      display: inline-block;
+    }
+
+    .info-box {
+      background: linear-gradient(135deg, #e3f2fd, #f3e5f5);
+      border: 1px solid #e1bee7;
+      border-radius: 8px;
+      padding: 12px;
+      margin: 8px 0;
+      font-size: 12px;
+      color: #4a148c;
+    }
+
+    .info-box::before {
+      content: "💡 ";
+      margin-right: 4px;
+    }
+
+    #attachInfo {
+      background: #f8f9fa;
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 1px solid #e9ecef;
+      margin-top: 8px;
+      font-size: 12px;
+      color: #6c757d;
+    }
+
+    #status, #log {
+      margin-top: 12px;
+      padding: 8px 0;
+    }
+
+    #log {
+      background: #f8f9fa;
+      border: 1px solid #e9ecef;
+      border-radius: 6px;
+      padding: 12px;
+      max-height: 200px;
+      overflow-y: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11px;
+      line-height: 1.4;
+      white-space: pre-wrap;
+    }
+
+    /* Attached Files Container */
+    .attached-files-container {
+      margin-top: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .attached-file-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: white;
+      border: 2px solid #e8ecf4;
+      border-radius: 8px;
+      padding: 12px 16px;
+      transition: all 0.3s ease;
+      animation: slideIn 0.3s ease-out;
+    }
+
+    .attached-file-item:hover {
+      border-color: #f093fb;
+      box-shadow: 0 2px 8px rgba(240, 147, 251, 0.2);
+    }
+
+    .file-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex: 1;
+    }
+
+    .file-icon {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, #f093fb, #f5576c);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      color: white;
+      font-weight: 600;
+    }
+
+    .file-details {
+      flex: 1;
+    }
+
+    .file-name {
+      font-weight: 600;
+      color: #2c3e50;
+      font-size: 13px;
+      margin-bottom: 2px;
+    }
+
+    .file-size {
+      font-size: 11px;
+      color: #7f8c8d;
+    }
+
+    .remove-file-btn {
+      width: 28px;
+      height: 28px;
+      border: none;
+      background: #e74c3c;
+      color: white;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: bold;
+      transition: all 0.3s ease;
+      flex-shrink: 0;
+    }
+
+    .remove-file-btn:hover {
+      background: #c0392b;
+      transform: scale(1.1);
+    }
+
+    .remove-file-btn:active {
+      transform: scale(0.95);
+    }
+
+    /* Animation for loading states */
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.5; }
+      100% { opacity: 1; }
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes slideOut {
+      from {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      to {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+    }
+
+    .loading {
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    .removing {
+      animation: slideOut 0.3s ease-out forwards;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 500px) {
+      body {
+        width: 100%;
+      }
+      
+      .container {
+        padding: 16px;
+      }
+      
+      .row {
+        flex-direction: column;
+        gap: 8px;
+      }
+      
+      .row > * {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>GITS Mailer</h1>
+    <fieldset>
+      <legend>1) Customer Data</legend>
+
+      <label>Select Excel/CSV (with columns: 会社名, 名前, メール)</label>
+      <div class="file-input-wrapper">
+        <input id="fileExcel" type="file" accept=".xlsx,.xls,.csv" />
+        <label for="fileExcel" class="file-input-label">
+          📊 Choose Excel/CSV File
+        </label>
+      </div>
+
+      <div class="divider">
+        <span>or</span>
+      </div>
+
+      <label>Paste Google Sheet / Excel link (public)</label>
+      <input id="excelUrl" type="text" placeholder="https://docs.google.com/spreadsheets/d/... or direct Excel link" />
+      <button id="btnFetchUrl">🔗 Load data from link</button>
+      
+      <div class="info-box">
+        Supported: Google Sheets, Excel online, CSV. Must include 3 columns: Company, Name, Email
+      </div>
+
+      <div style="margin-top: 16px;">
+        <label>Data Preview:</label>
+        <div id="preview" class="list muted">No data yet.</div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>2) Attachments (up to 3 files)</legend>
+      <div class="file-input-wrapper">
+        <input id="fileAttach" type="file" multiple />
+        <label for="fileAttach" class="file-input-label multiple">
+          📎 Choose attachments (max 3 files)
+        </label>
+      </div>
+      <div id="attachInfo" class="small muted">0 files selected.</div>
+      <div id="attachedFiles" class="attached-files-container"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>2.5) CC Email (Optional)</legend>
+      <label>CC Recipients</label>
+      <input id="ccEmails" type="text" placeholder="email1@example.com, email2@example.com" />
+      <div class="small muted">Nhập nhiều email cách nhau bằng dấu phẩy (,) hoặc chấm phẩy (;)</div>
+    </fieldset>
+
+  <fieldset>
+    <legend>3) Email Content</legend>
+    <label>Subject</label>
+    <input id="subject" type="text" class="mono" value="【ITアウトソーシングご提案のご連絡】貴社の課題解決に貢献できるGITSのご紹介" />
+
+    <label>Body Template</label>
+    <textarea id="body" class="mono"></textarea>
+
+    <div class="small">Available placeholders: <span class="pill">{{会社名}}</span><span class="pill">{{名前}}</span>.<br/>
+      *The system will automatically add “様” after the name.</div>
+  </fieldset>
+
+  <fieldset>
+    <legend>4) Send</legend>
+    <div class="row">
+      <label>Email delay (ms)</label>
+      <input id="delay" type="text" value="1200" />
+    </div>
+    <button id="btnAuth">Sign in with Google / Grant Access</button>
+    <button id="btnSend" style="float:right;">Send All</button>
+    <div style="clear:both;"></div>
+    <div id="status" class="small"></div>
+    <div id="log" class="small"></div>
+  </fieldset>
+
+  <script src="lib/xlsx.min.js"></script>
+  <script src="popup.js" type="module"></script>
+</body>
+</html>
