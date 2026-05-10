@@ -11,6 +11,15 @@ const SCOPES = [
 
 let oauthToken = null;
 
+// Background sending state
+let backgroundSendState = {
+  isRunning: false,
+  currentIndex: 0,
+  totalCount: 0,
+  results: [],
+  payload: null
+};
+
 // --- OAuth helpers ---
 async function getAccessTokenInteractive() {
   const redirectUri = chrome.identity.getRedirectURL('oauth2');
@@ -164,7 +173,100 @@ async function getDefaultSignature() {
   }
 }
 
-// --- Send batch emails ---
+// --- Send batch emails (background mode) ---
+async function sendBatchBackground(payload, startIndex = 0) {
+  const { rows, subject, templateBody, attachments = [], ccEmails = [], fromOverride, perEmailDelayMs = 1200 } = payload;
+  
+  const totalBytes = attachments.reduce((sum, f) => sum + (f.size || 0), 0);
+  const MAX_BYTES = 35 * 1024 * 1024;
+  if (totalBytes > MAX_BYTES) throw new Error(`Tổng dung lượng đính kèm vượt 35MB`);
+
+  backgroundSendState.isRunning = true;
+  backgroundSendState.currentIndex = startIndex;
+  backgroundSendState.totalCount = rows.length;
+  backgroundSendState.payload = payload;
+  
+  if (startIndex === 0) {
+    backgroundSendState.results = [];
+  }
+
+  const signature = await getDefaultSignature();
+
+  for (let i = startIndex; i < rows.length; i++) {
+    if (!backgroundSendState.isRunning) {
+      console.log('⏸️ Background sending stopped by user');
+      break;
+    }
+
+    backgroundSendState.currentIndex = i;
+    
+    const r = rows[i];
+    const company = (r.company || '').toString().trim();
+    const nameRaw = (r.name || '').toString().trim();
+    const to = (r.email || '').toString().trim();
+
+    if (!to) {
+      console.warn(`❌ Row ${i+1}: Missing email`);
+      backgroundSendState.results.push({ index: i, to, status: 'skipped', reason: 'Missing email' });
+      continue;
+    }
+
+    const nameWithSama = ensureSama(nameRaw.replace(/様+$/,'').trim());
+    
+    const body = fillTemplate({ 
+      company, 
+      name: nameWithSama.replace(/\s*様$/,''), 
+      templateBody,
+      isHtml: true 
+    });
+    
+    const bodyWithSignature = `${body}<br><br>${signature}`;
+
+    try {
+      const raw = await buildRawEmail({ 
+        to, 
+        cc: ccEmails,
+        subject, 
+        body: bodyWithSignature, 
+        attachments, 
+        from: fromOverride 
+      });
+      await gmailSendRaw(raw);
+      console.log(`✅ [${i+1}/${rows.length}] Sent email to: ${to}${ccEmails.length > 0 ? ` (CC: ${ccEmails.join(', ')})` : ''}`);
+      backgroundSendState.results.push({ index: i, to, status: 'sent' });
+    } catch (e) {
+      console.error(`💥 Error sending email to ${to}:`, e);
+      backgroundSendState.results.push({ index: i, to, status: 'error', error: String(e) });
+    }
+
+    if (i < rows.length - 1 && perEmailDelayMs > 0) {
+      await new Promise(r => setTimeout(r, perEmailDelayMs));
+    }
+  }
+
+  const isCompleted = backgroundSendState.currentIndex >= rows.length - 1;
+  
+  if (isCompleted) {
+    backgroundSendState.isRunning = false;
+    
+    // Show completion notification
+    const sent = backgroundSendState.results.filter(r => r.status === 'sent').length;
+    const failed = backgroundSendState.results.filter(r => r.status === 'error').length;
+    const skipped = backgroundSendState.results.filter(r => r.status === 'skipped').length;
+    
+    chrome.notifications.create({
+      type: 'basic',
+      iconUrl: 'icons/capy.png',
+      title: 'GITS Gmail Sender - Hoàn thành',
+      message: `✅ Đã gửi: ${sent}\n❌ Lỗi: ${failed}\n⏭️ Bỏ qua: ${skipped}`,
+      priority: 2
+    });
+  }
+
+  return backgroundSendState.results;
+}
+
+// --- Send batch emails (legacy sync mode) ---
 async function sendBatch({ rows, subject, templateBody, attachments = [], ccEmails = [], fromOverride, perEmailDelayMs = 1200 }) {
   const totalBytes = attachments.reduce((sum, f) => sum + (f.size || 0), 0);
   const MAX_BYTES = 35 * 1024 * 1024;
@@ -261,16 +363,41 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
             rowsCount: msg.payload?.rows?.length || 0,
             subject: msg.payload?.subject,
             attachmentsCount: msg.payload?.attachments?.length || 0,
-            delay: msg.payload?.perEmailDelayMs
+            delay: msg.payload?.perEmailDelayMs,
+            backgroundMode: msg.backgroundMode
           });
 
           msg.payload.rows.forEach((row, index) => {
             console.log(`  Row ${index + 1}:`, { company: row.company, name: row.name, email: row.email });
           });
 
-          const out = await sendBatch(msg.payload);
-          console.log('✅ SEND_BATCH completed:', out);
-          sendResponse({ ok: true, results: out });
+          if (msg.backgroundMode) {
+            // Start background sending (non-blocking)
+            sendBatchBackground(msg.payload, 0).catch(e => {
+              console.error('💥 Background send error:', e);
+            });
+            sendResponse({ ok: true, backgroundStarted: true });
+          } else {
+            // Legacy sync mode
+            const out = await sendBatch(msg.payload);
+            console.log('✅ SEND_BATCH completed:', out);
+            sendResponse({ ok: true, results: out });
+          }
+          break;
+        }
+        case 'GET_SEND_STATUS': {
+          sendResponse({ 
+            ok: true, 
+            isRunning: backgroundSendState.isRunning,
+            currentIndex: backgroundSendState.currentIndex,
+            totalCount: backgroundSendState.totalCount,
+            results: backgroundSendState.results
+          });
+          break;
+        }
+        case 'STOP_SENDING': {
+          backgroundSendState.isRunning = false;
+          sendResponse({ ok: true, stopped: true });
           break;
         }
         case 'LOGOUT_TOKEN':

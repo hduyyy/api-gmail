@@ -15,13 +15,215 @@ const bodyEl = $('#body');
 const delayEl = $('#delay');
 const btnAuth = $('#btnAuth');
 const btnSend = $('#btnSend');
+const btnClearData = $('#btnClearData');
 const statusEl = $('#status');
 const logEl = $('#log');
 
 let rows = []; // {会社名, 名前, メール} hoặc {company,name,email}
 let attachments = []; // {name, mimeType, base64, size}
+let statusCheckInterval = null;
 
-// Thiết lập template email mặc định
+// ========== AUTO-SAVE & RESTORE STATE ==========
+const STORAGE_KEY = 'gmail_sender_state';
+
+// Load saved state on startup
+async function loadSavedState() {
+  try {
+    const result = await chrome.storage.local.get([STORAGE_KEY]);
+    const savedState = result[STORAGE_KEY];
+    
+    if (!savedState) {
+      console.log('📭 No saved state found');
+      return;
+    }
+    
+    console.log('📥 Loading saved state:', savedState);
+    
+    // Restore form fields
+    if (savedState.subject) subjectEl.value = savedState.subject;
+    if (savedState.body) bodyEl.value = savedState.body;
+    if (savedState.delay) delayEl.value = savedState.delay;
+    if (savedState.ccEmails) document.getElementById('ccEmails').value = savedState.ccEmails;
+    if (savedState.excelUrl) excelUrl.value = savedState.excelUrl;
+    
+    // Restore rows data
+    if (savedState.rows && savedState.rows.length > 0) {
+      rows = savedState.rows;
+      renderPreview(rows);
+      status(`✅ Đã khôi phục ${rows.length} khách hàng từ lần trước`, true);
+    }
+    
+    // Restore attachments
+    if (savedState.attachments && savedState.attachments.length > 0) {
+      attachments = savedState.attachments;
+      renderAttachedFiles();
+      console.log('✅ Restored attachments:', attachments.length);
+    }
+    
+  } catch (e) {
+    console.error('❌ Error loading saved state:', e);
+  }
+}
+
+// Save current state
+async function saveCurrentState() {
+  try {
+    const state = {
+      subject: subjectEl.value,
+      body: bodyEl.value,
+      delay: delayEl.value,
+      ccEmails: document.getElementById('ccEmails').value,
+      excelUrl: excelUrl.value,
+      rows: rows,
+      attachments: attachments,
+      savedAt: new Date().toISOString()
+    };
+    
+    await chrome.storage.local.set({ [STORAGE_KEY]: state });
+    console.log('💾 State saved');
+  } catch (e) {
+    console.error('❌ Error saving state:', e);
+  }
+}
+
+// Auto-save on input changes (debounced)
+let saveTimeout = null;
+function scheduleAutoSave() {
+  if (saveTimeout) clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(() => {
+    saveCurrentState();
+  }, 1000); // Save after 1 second of inactivity
+}
+
+// Attach auto-save listeners
+subjectEl.addEventListener('input', scheduleAutoSave);
+bodyEl.addEventListener('input', scheduleAutoSave);
+delayEl.addEventListener('input', scheduleAutoSave);
+document.getElementById('ccEmails').addEventListener('input', scheduleAutoSave);
+excelUrl.addEventListener('input', scheduleAutoSave);
+
+// Load saved state on startup
+loadSavedState();
+
+// ========== BACKGROUND SEND STATUS ==========
+async function checkSendStatus() {
+  const { ok, isRunning, currentIndex, totalCount, results } = await sendMsg({ type: 'GET_SEND_STATUS' });
+  
+  if (!ok) return;
+  
+  if (isRunning) {
+    status(`📤 Đang gửi ngầm: ${currentIndex + 1}/${totalCount}...`, true);
+    btnSend.textContent = '⏸️ Dừng gửi';
+    btnSend.disabled = false;
+  } else if (results && results.length > 0) {
+    // Show final results
+    const sent = results.filter(r => r.status === 'sent').length;
+    const skipped = results.filter(r => r.status === 'skipped').length;
+    const failed = results.filter(r => r.status === 'error').length;
+    
+    status(`✅ Hoàn thành. Đã gửi: ${sent}, Bỏ qua: ${skipped}, Lỗi: ${failed}.`, true);
+    
+    // Update log
+    logEl.textContent = '';
+    results.forEach(r => {
+      const line = r.status === 'error'
+        ? `✗ [${r.index}] ${r.to} — LỖI: ${r.error}\n`
+        : r.status === 'skipped'
+          ? `• [${r.index}] ${r.to || '(no email)'} — BỎ QUA\n`
+          : `✓ [${r.index}] ${r.to} — ĐÃ GỬI\n`;
+      logEl.textContent += line;
+    });
+    
+    btnSend.textContent = '📧 Gửi Email';
+    btnSend.disabled = false;
+    
+    // Stop checking
+    if (statusCheckInterval) {
+      clearInterval(statusCheckInterval);
+      statusCheckInterval = null;
+    }
+  }
+}
+
+// Check status on popup open
+checkSendStatus();
+
+// ========== CLEAR DATA BUTTON ==========
+btnClearData.addEventListener('click', async () => {
+  if (!confirm('Bạn có chắc muốn xóa tất cả dữ liệu đã lưu?\n\nĐiều này sẽ xóa:\n- Dữ liệu khách hàng\n- Tiêu đề & nội dung email\n- File đính kèm\n- CC emails\n- Link Excel/Google Sheets')) {
+    return;
+  }
+  
+  try {
+    // Clear storage
+    await chrome.storage.local.remove([STORAGE_KEY]);
+    
+    // Reset all fields
+    subjectEl.value = '【ITアウトソーシングご提案のご連絡】貴社の課題解決に貢献できるGITSのご紹介';
+    bodyEl.value = `どうも初めまして。
+ベトナムに拠点を構えるITアウトソーシング企業、GITS株式会社の営業部のアインと申します。
+この度、貴社のプロフィールを拝見し、ソフトウェア・システム開発において、業務改善に弊社のサービスを支援できるのではと感じ、ご連絡させていただきました。
+
+ー GITS株式会社について簡単に紹介させていただきます。
+弊社はベトナム本社・日本拠点を持つオフショア開発専門企業であり、製造、物流、医療、IoT、クラウドなどの分野において、日系企業様向けにソフトウェア開発サービスを提供しております。
+＊提供サービスの詳細：
+・ITコンサルティング
+・ソフトウェア開発
+・保守およびサポート
+・ITエンジニア派遣（オンサイト・ラボ型対応可能）
+    
+GITSで製品、ソフトウェア開発における対応可能な開発実績（一部）：
+・ルーター設定・監視システム
+・介護居宅用システム
+・モニタリングシステム
+・PCB品質検査システム
+・顔認識を用いたスマート出席システム 　など。
+
+GITSの強み：
+・　日本語・韓国語対応可能なPM・エンジニアが多数在籍
+・　CMMI 2.0 Level 3準拠の品質・開発プロセス
+・　情報セキュリティ対策（物理・非物理の両面）
+・　マーケティング費・営業費を抑えたコスト最適化体制により、高品質かつ競争力のある価格を実現
+
+以上です。
+
+本メールには弊社の会社案内資料を添付しておりますので、ぜひご覧いただけますと幸いです。
+また、ご都合がよろしければ、来週以降でZoom等によるご挨拶・ご説明の機会をいただけますと幸いです。
+
+何卒よろしくお願い申し上げます。`;
+    delayEl.value = '1200';
+    document.getElementById('ccEmails').value = '';
+    excelUrl.value = '';
+    
+    // Reset data
+    rows = [];
+    attachments = [];
+    
+    // Reset UI
+    renderPreview(rows);
+    renderAttachedFiles();
+    
+    // Reset file inputs
+    fileExcel.value = '';
+    fileAttach.value = '';
+    
+    // Reset labels
+    document.querySelector('label[for="fileExcel"]').textContent = '📊 Chọn file Excel/CSV';
+    document.querySelector('label[for="fileAttach"]').textContent = '📎 Choose attachments (max 3 files)';
+    
+    // Clear log
+    logEl.textContent = '';
+    
+    status('✅ Đã xóa tất cả dữ liệu đã lưu', true);
+    
+    console.log('🗑️ All data cleared');
+  } catch (e) {
+    console.error('❌ Error clearing data:', e);
+    status('Lỗi khi xóa dữ liệu: ' + e.message, false, true);
+  }
+});
+
+// Thiết lập template email mặc định (chỉ khi chưa có saved state)
 if (!bodyEl.value.trim()) {
   bodyEl.value = `どうも初めまして。
 ベトナムに拠点を構えるITアウトソーシング企業、GITS株式会社の営業部のアインと申します。
@@ -77,6 +279,7 @@ btnFetchUrl.addEventListener('click', async () => {
         rows = result;
         renderPreview(rows);
         status(`Đã nạp ${rows.length} dòng từ Google Sheets.`, true);
+        saveCurrentState(); // Auto-save after loading data
         return;
       }
     }
@@ -86,6 +289,7 @@ btnFetchUrl.addEventListener('click', async () => {
       rows = await loadCSVFromLink(url) || [];
       renderPreview(rows);
       status(`Đã nạp ${rows.length} dòng từ link CSV.`, true);
+      saveCurrentState(); // Auto-save after loading data
       return;
     }
 
@@ -107,6 +311,7 @@ btnFetchUrl.addEventListener('click', async () => {
     rows = parseExcelData(data);
     renderPreview(rows);
     status(`Đã nạp ${rows.length} dòng từ file Excel.`, true);
+    saveCurrentState(); // Auto-save after loading data
 
   } catch (err) {
     console.error(err);
@@ -183,6 +388,7 @@ fileExcel.addEventListener('change', async (e) => {
       fileLabel.textContent = `✅ ${rows.length} khách hàng từ ${file.name}`;
       fileLabel.classList.remove('loading');
       status(`Đã nạp ${rows.length} dòng từ ${file.name}.`, true);
+      saveCurrentState(); // Auto-save after loading data
     } else {
       rows = [];
       fileLabel.textContent = '❌ Cấu trúc file không đúng';
@@ -296,6 +502,7 @@ function removeAttachment(index) {
     attachments.splice(index, 1);
     console.log('Attachments after removal:', attachments);
     renderAttachedFiles();
+    saveCurrentState(); // Auto-save after removing attachment
   }, 300);
 }
 
@@ -338,6 +545,7 @@ fileAttach.addEventListener('change', async (e) => {
     
     fileLabel.classList.remove('loading');
     renderAttachedFiles();
+    saveCurrentState(); // Auto-save after adding attachments
     
     // Reset file input
     e.target.value = '';
@@ -551,6 +759,23 @@ function parseExcelData(data) {
 
 
 btnSend.addEventListener('click', async () => {
+  // Check if currently sending in background
+  const { ok: statusOk, isRunning } = await sendMsg({ type: 'GET_SEND_STATUS' });
+  
+  if (statusOk && isRunning) {
+    // Stop sending
+    const { ok } = await sendMsg({ type: 'STOP_SENDING' });
+    if (ok) {
+      status('⏸️ Đã dừng gửi email', false);
+      btnSend.textContent = '📧 Gửi Email';
+      if (statusCheckInterval) {
+        clearInterval(statusCheckInterval);
+        statusCheckInterval = null;
+      }
+    }
+    return;
+  }
+  
   // Debug: kiểm tra trạng thái trước khi gửi
   console.log('🚀 Send button clicked');
   console.log('📊 Current rows data:', rows);
@@ -580,8 +805,8 @@ btnSend.addEventListener('click', async () => {
 
   console.log('⚙️ Settings:', { delay, attachmentsCount: attachments.length, ccEmails });
 
-  status('Starting to send...', true);
-  logEl.textContent = '';
+  status('🚀 Bắt đầu gửi ngầm... (có thể đóng popup)', true);
+  logEl.textContent = 'Đang gửi email trong background...\n';
 
   const payload = {
     rows: rows.map(r => ({ company: r['会社名'], name: r['名前'], email: r['メール'] })),
@@ -602,30 +827,28 @@ btnSend.addEventListener('click', async () => {
   console.log('👥 Payload rows detail:', payload.rows);
 
   try {
-    console.log('📤 Sending message to service worker...');
-    const { ok, results, error } = await sendMsg({ type: 'SEND_BATCH', payload });
-    console.log('📥 Response from service worker:', { ok, results, error });
+    console.log('📤 Starting background send...');
+    const { ok, backgroundStarted, error } = await sendMsg({ 
+      type: 'SEND_BATCH', 
+      payload,
+      backgroundMode: true 
+    });
     
     if (!ok) {
       console.log('❌ Service worker returned error:', error);
       return status('Lỗi gửi: ' + error, false, true);
     }
 
-    const sent = results.filter(r => r.status === 'sent').length;
-    const skipped = results.filter(r => r.status === 'skipped').length;
-    const failed = results.filter(r => r.status === 'error').length;
-
-    console.log('✅ Send completed:', { sent, skipped, failed });
-
-    status(`Done. Sent: ${sent}, Skipped: ${skipped}, Error: ${failed}.`, true);
-    results.forEach(r => {
-      const line = r.status === 'error'
-        ? `✗ [${r.index}] ${r.to} — ERROR: ${r.error}\n`
-        : r.status === 'skipped'
-          ? `• [${r.index}] ${r.to || '(no email)'} — SKIPPED\n`
-          : `✓ [${r.index}] ${r.to} — SENT\n`;
-      logEl.textContent += line;
-    });
+    if (backgroundStarted) {
+      console.log('✅ Background send started');
+      btnSend.textContent = '⏸️ Dừng gửi';
+      
+      // Start polling for status
+      if (statusCheckInterval) clearInterval(statusCheckInterval);
+      statusCheckInterval = setInterval(checkSendStatus, 2000);
+      
+      status('📤 Đang gửi ngầm... Bạn có thể đóng popup.', true);
+    }
   } catch (err) {
     console.error('💥 Error during send process:', err);
     status('Lỗi không mong đợi: ' + err.message, false, true);
