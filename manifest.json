@@ -1,0 +1,45 @@
+{
+  "manifest_version": 3,
+  "name": "GITS Gmail Sender",
+  "version": "1.0.0",
+  "description": "Send personalized outreach emails via Gmail API with attachment.",
+   "icons":{
+      "16": "icons/capy.png",
+      "32": "icons/capy.png",
+      "48": "icons/capy.png",
+      "128": "icons/capy.png"
+   },
+  "action": {
+    "default_title": "GITS Gmail Sender",
+    "default_popup": "popup.html",
+    "default_icon":{
+      "16": "icons/capy.png",
+      "32": "icons/capy.png",
+      "48": "icons/capy.png",
+      "128": "icons/capy.png"
+    }
+  },
+  "background": {
+    "service_worker": "service_worker.js",
+    "type": "module"
+  },
+  "permissions": [
+    "identity",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://www.googleapis.com/*",
+    "https://accounts.google.com/*",
+     "https://docs.google.com/*"
+  ],
+  "oauth2": {
+    "client_id": "132712804092-tt934audq04hka606068knfpdpeoupik.apps.googleusercontent.com",
+    "scopes": [
+        "https://www.googleapis.com/auth/gmail.send",
+        "https://www.googleapis.com/auth/spreadsheets.readonly",
+        "https://www.googleapis.com/auth/gmail.settings.basic"
+    ]
+  },
+  "key":"MIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQC+0Jn3TVOkbwnFL81vyTUoWgG+60NcaXQvQFsBS9W4jGGLiN0yQPDysbB9PhNjxrb2ti6Vfeo8ztwTQoDLVUX+tpuX+eyRpxyk246/NZq/acp5xkQc8voDg4RdW0517kbmy/TcEGdW+F+RH2JmHLoyu0vdhek4cbmICFTrqsYfucPws3wQG6G8FPwXx01TCvAqDXk2ZruD3rU1Gp1y8QzEpBACayRiLvkhwY+VBYOubTFxs/VjioywqNos7iklpNKzC+fpQYTo5GUuZfe8Y1LLoO3PAvTZjJpJiV4Irk7oigyl3K5lwtpKoyvuS56WfRIfDiVtjZ8rr5KlMxI3d+WtAgMBAAECggEAJhwxKBKeYkDYHXVE7W7tCkRhxWElGMOqFBbhJjLgemW1RMJe1V7hkMNa+cSoaDzjxYYQ60QVALSbAVC+uv2qx2ruzA17SYLsJmQAkGFzKQhGy4gFChggRYvip6epFcYzjHyPSNWQ4i6kna48P6M8sA224wVQFXknQktRtKjsvaCK//D64+7Sh6vuh0zig1yTS9ksSpaqmdRW0WXhb+5c4GFBTK/MmpfKTWxWBir4VcDkoa30KXYYPaD0tn3b16p0ptQlYo4yHtfolGw9ZyDfAnqsC6ArbCFfLxfPvyB9AtdNI0lj9+3D1OUcz7sd5Vk1/DGCyllAh8uRboIzL44vIQKBgQDdDqKlmuGh2mO0fTV36ZiKHK6p5Znu/eGXv59LFuXA6KDdhQlIPIno+TRrdW20t9mkkWxOQM0EL32o+oNDeKYJozef6LJfknA9TrkPYNWqHc6VilhMarwGbC4+h4TsqEG1evpwWaiMmUaIasty5Mr9LuV0ePAC6ppW5lEMFM7E4QKBgQDc+ivjyJVo3UcsZ1+ReOVfUiRS3NxdCGwkpZDvwuscycvnNQfAGloiKYvMKnyoLhyhQlAYY16oe4M52jbdw5k4Hdd0i+sZchay/krLFPLJMTgAiOuC7eqqsIiuh1yiBz7ILA/DewlHLAasF8qEoAwcVTrlKx+B5htYgRTzBG5uTQKBgQDBHzMbKNdsVmX63dRjgVHBf1NcnHlCIM0AjOk2abepM9KuFLbKRBFb1rNkGgAQ/PmIW3/aUaSKvo6ynMEmpfWwv8YtztZexomGFgt5Euk3qLi9TlLb1/eSSNqRyEVpl4loahr3Im0tAA9tyJcbNiTc0ial/a35bkoOF0LBIkCOIQKBgQCk6vR8kIOpepOWuSOi/xY4eKZxTTINIK8M/p/XwKIVnylVSceaAFDKdDVIT2EvZxKo60O5n9fSaDO8pnYSNduQ/PyCl7YDDJmSRqRtQhocO2ZvR8B0u7lKYGvxzUY+Cqg5XmD5ZEa9XkcwgqT7LDM9pgJJbFCccq5v9A49fE4qdQKBgQCxYb99DAbvZwc/JRnL5JaLscMFP/LkHEQHhHNhEQBqMbHL6tMKDlu7y9ojaVjoplbOCKpI9KtgL1cK1JUmrKlaJ0FF+NvZTA1hEDNMU6P+Qvf0x4rVzk0twv52fLRdJE7WkEl4VcYQ3W0n4th/+J4fN4pzeYy4dE4Y6Lgz7tXK7A=="
+
+}
